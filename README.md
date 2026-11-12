@@ -18,7 +18,7 @@ edits its SQLite library, signs it (hashAB) and **generates cover art itself**.
 ## Features
 
 - `list` / `export` — inspect and download tracks from the device (with tags).
-- `add` — upload an MP3, metadata from tags, **cover art attached automatically**
+- `add` — upload an MP3 or AAC (`.m4a`) file, metadata from tags, **cover art attached automatically**
   (from an embedded APIC/covr): shown both in Now Playing and in list/Albums views.
 - **fits into an iTunes-made library** — added tracks are sorted into the Songs,
   Artists and Albums lists like iTunes does it ("The Killers" under K, or by the file's
@@ -56,15 +56,16 @@ python3 -m venv ~/.venvs/ipodsync
 
 Requires Python ≥ 3.9. Pure-Python — no compiler or native library needed.
 
-> Note: uploading currently supports **MP3 only**. FLAC/AAC → ALAC transcoding
-> (which will need `ffmpeg`) is on the roadmap and not implemented yet.
+> Note: uploading currently supports **MP3 and AAC (`.m4a`)**. Apple Lossless (ALAC)
+> files are skipped for now; ALAC and FLAC → ALAC transcoding (which will need `ffmpeg`)
+> are on the roadmap and not implemented yet.
 
 ## Usage
 
 ```bash
 ipodsync status                     # ready / no access / not connected
 ipodsync list
-ipodsync add "Song.mp3"             # + cover auto
+ipodsync add "Song.mp3"             # + cover auto (MP3 or AAC .m4a)
 ipodsync add a.mp3 b.mp3 c.mp3      # several at once (one library write)
 ipodsync add -f ~/Music/album       # a whole folder (recursively)
 ipodsync add "Song.mp3" --no-cover
@@ -150,13 +151,13 @@ Two catches:
 
 | | Status |
 |---|---|
-| Upload / remove / export / playlists (MP3) | ✅ confirmed on nano 7G |
+| Upload / remove / export / playlists (MP3, AAC) | ✅ confirmed on nano 7G |
 | Cover art (pure-Python) | ✅ confirmed on nano 7G |
 | Adding to an iTunes-made library (sorting, album artist, counts) | ✅ confirmed on nano 7G |
 | Empty-library bootstrap | ✅ |
 | **Pure-Python hashAB** (no native lib, installs everywhere) | ✅ 100/100 vectors |
 | Cross-platform device discovery (macOS + Linux) | ✅ |
-| FLAC/AAC → ALAC | ⬜ |
+| ALAC, FLAC → ALAC | ⬜ |
 
 ## Development
 
