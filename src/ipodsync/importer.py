@@ -84,15 +84,16 @@ def copy_audio_to_ipod(ipod, src: str | Path, ext: str = ".mp3") -> tuple[str, P
 
 def add_mp3_to_library(itlp_dir: str | Path, location: str, meta_src: str | Path,
                        file_size: int, guid: bytes, *, overrides: dict | None = None,
-                       artwork_dir: str | Path | None = None) -> int:
+                       artwork_dir: str | Path | None = None, meta: dict | None = None) -> int:
     """Add an already-copied MP3 to the .itlp library (itlp_dir) + resign.
 
     itlp_dir — directory with the .itdb files (a working copy is fine). meta_src —
-    the source file to read tags from. If artwork_dir is given (iPod_Control/Artwork
-    on the device) and the file has embedded cover art, it is automatically linked to
-    the track (frames appended to .ithmb, mhii to ArtworkDB, fields in item). Returns the pid.
+    the source file to read tags from (unless `meta`, already read, is given). If
+    artwork_dir is given (iPod_Control/Artwork on the device) and the file has embedded
+    cover art, it is automatically linked to the track (frames appended to .ithmb, mhii
+    to ArtworkDB, fields in item). Returns the pid.
     """
-    meta = read_mp3_meta(Path(meta_src))
+    meta = dict(meta) if meta is not None else read_mp3_meta(Path(meta_src))
     if overrides:
         meta.update({k: v for k, v in overrides.items() if v is not None})
         for k, v in overrides.items():       # the file's sort tag belongs to the old name

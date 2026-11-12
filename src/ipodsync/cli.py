@@ -29,7 +29,7 @@ def _mac_now() -> int:
 
 
 from ipodsync.export import export_track
-from ipodsync.importer import add_mp3_to_library, copy_audio_to_ipod
+from ipodsync.importer import add_mp3_to_library, copy_audio_to_ipod, read_mp3_meta
 from ipodsync.library import ItlpLibrary
 from ipodsync.sysinfo import read_firewire_guid
 from ipodsync.transport import (NO_ACCESS_HINT, Access, IPodNotFound, find_ipod,
@@ -285,26 +285,48 @@ def cmd_add(ipod, args):
     guid = read_firewire_guid(ipod.sysinfo_extended, ipod.sysinfo, mount=ipod.root)
     overrides = {"title": args.title, "artist": args.artist, "album": args.album}
 
+    # Read every file's tags first, so a file that can't be added is skipped
+    # before anything is copied onto the iPod.
+    todo, skipped = [], 0
+    for src in files:
+        try:
+            todo.append((src, read_mp3_meta(src)))
+        except Exception as e:
+            print(f"⚠️  skipping \"{src.name}\": {e}")
+            skipped += 1
+    if not todo:
+        raise SystemExit("⚠️  add: nothing to add")
+
     # Edit one working copy of the library, add every file, then write it back once.
     work = Path("/tmp") / f"itlp_add_{stamp}"
     shutil.copytree(itlp, work)
-    n = len(files)
+    n = len(todo)
     added = 0
-    for i, src in enumerate(files, 1):
-        prefix = f"[{i}/{n}] " if n > 1 else ""
-        print(f"→ {prefix}copying \"{src.name}\" onto the iPod…")
-        location, abs_path = copy_audio_to_ipod(ipod, str(src))
-        pid = add_mp3_to_library(work, location, str(src), abs_path.stat().st_size,
-                                 guid, overrides=overrides if n == 1 else {},
-                                 artwork_dir=art_dir)
-        cover = "" if args.no_cover else " (+ cover art)"
-        print(f"  ✓ {prefix}added \"{src.name}\"{cover}  ·  pid {pid}")
-        added += 1
+    copied = []                          # removed again if the library isn't written
+    try:
+        for i, (src, meta) in enumerate(todo, 1):
+            prefix = f"[{i}/{n}] " if n > 1 else ""
+            print(f"→ {prefix}copying \"{src.name}\" onto the iPod…")
+            location, abs_path = copy_audio_to_ipod(ipod, str(src))
+            copied.append(abs_path)
+            pid = add_mp3_to_library(work, location, str(src), abs_path.stat().st_size,
+                                     guid, overrides=overrides if n == 1 else {},
+                                     artwork_dir=art_dir, meta=meta)
+            cover = "" if args.no_cover else " (+ cover art)"
+            print(f"  ✓ {prefix}added \"{src.name}\"{cover}  ·  pid {pid}")
+            added += 1
+    except BaseException:
+        for f in copied:                 # the library is unchanged: don't leave orphans
+            f.unlink(missing_ok=True)
+        print("⚠️  add failed: nothing was added, the copied files were removed again.")
+        raise
 
     for name in ("Library.itdb", "Locations.itdb", "Dynamic.itdb",
                  "Extras.itdb", "Locations.itdb.cbk"):
         shutil.copy2(work / name, itlp / name)
     print(f"✓ Added {added} track{'s' if added != 1 else ''}. Eject the iPod, then check Songs.")
+    if skipped:
+        print(f"  Skipped {skipped} file{'s' if skipped != 1 else ''} (see above).")
     if backup:
         print(f"  Undo: rm -rf '{itlp}' && cp -r '{backup}' '{itlp}'")
 
