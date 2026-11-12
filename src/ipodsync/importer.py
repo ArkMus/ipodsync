@@ -1,7 +1,7 @@
 """Upload an audio file TO the iPod: copy into Fxx/ + metadata + add_track.
 
-MP3 is supported for now (the format codes are known from the reference). AAC/ALAC
-(m4a) is the next step (needs audio_format/extension codes; FLAC — via ffmpeg to ALAC).
+MP3 and AAC (.m4a) are supported, with the format codes iTunes writes for them.
+ALAC (also .m4a) isn't yet: its codes aren't known (FLAC — via ffmpeg to ALAC).
 
 Metadata is read via mutagen (required for this operation).
 """
@@ -17,7 +17,19 @@ from .library import ItlpLibrary, TrackMeta
 MAC_EPOCH = 978307200
 MP3_EXT_4CC = 1297101600      # 0x4d503320 ('MP3 ')
 MP3_AUDIO_FORMAT = 301
+M4A_EXT_4CC = 1295270176      # 0x4d344120 ('M4A ')
+AAC_AUDIO_FORMAT = 502
 NUM_MUSIC_FOLDERS = 50        # F00..F49
+
+# suffix -> (avformat_info.audio_format, location.extension, kind), as iTunes writes them
+FORMATS = {
+    ".mp3": (MP3_AUDIO_FORMAT, MP3_EXT_4CC, "MPEG audio file"),
+    ".m4a": (AAC_AUDIO_FORMAT, M4A_EXT_4CC, "AAC audio file"),
+}
+
+
+class UnsupportedAudio(ValueError):
+    """A file `add` can't put on the iPod (yet)."""
 
 
 def _mac_now() -> int:
@@ -36,18 +48,30 @@ def _pick_target(music_dir: Path, ext: str) -> tuple[str, Path]:
     raise RuntimeError("could not find a free Fxx folder on the device")
 
 
-def read_mp3_meta(path: Path) -> dict:
-    """Extract duration/bitrate/sample rate and tags from an MP3 via mutagen."""
-    from mutagen.mp3 import MP3
-    from mutagen.easyid3 import EasyID3
+def read_meta(path: Path) -> dict:
+    """Extract duration/bitrate/sample rate and tags from an MP3 or AAC .m4a via
+    mutagen, plus the format codes to store. Raises UnsupportedAudio for other files."""
+    path = Path(path)
+    ext = path.suffix.lower()
+    if ext not in FORMATS:
+        raise UnsupportedAudio(f"{ext or 'this file type'} isn't supported (MP3 and AAC .m4a only)")
+    if ext == ".mp3":
+        from mutagen.easyid3 import EasyID3
+        from mutagen.mp3 import MP3
 
-    mp3 = MP3(path)
-    info = mp3.info
-    tags = {}
-    try:
-        tags = EasyID3(path)
-    except Exception:
-        pass
+        audio = MP3(path, ID3=EasyID3)
+    else:
+        from mutagen.easymp4 import EasyMP4
+
+        audio = EasyMP4(path)
+        codec = getattr(audio.info, "codec", "")
+        if codec == "alac":
+            raise UnsupportedAudio("Apple Lossless (ALAC) isn't supported yet")
+        if codec not in ("mp4a", "mp4a.40.2"):     # AAC-LC, what iTunes encodes
+            raise UnsupportedAudio(f"the {codec or 'unknown'} codec isn't supported "
+                                   "(AAC .m4a only)")
+    info = audio.info
+    tags = audio.tags or {}           # the same "easy" keys for ID3 and MP4
 
     def g(k):
         v = tags.get(k)
@@ -72,6 +96,8 @@ def read_mp3_meta(path: Path) -> dict:
         "total_time_ms": int(info.length * 1000),
         "bit_rate": int(getattr(info, "bitrate", 0) // 1000),
         "sample_rate": int(getattr(info, "sample_rate", 44100)),
+        "ext": ext, "audio_format": FORMATS[ext][0], "extension": FORMATS[ext][1],
+        "kind": FORMATS[ext][2],
     }
 
 
@@ -82,10 +108,10 @@ def copy_audio_to_ipod(ipod, src: str | Path, ext: str = ".mp3") -> tuple[str, P
     return location, abs_path
 
 
-def add_mp3_to_library(itlp_dir: str | Path, location: str, meta_src: str | Path,
-                       file_size: int, guid: bytes, *, overrides: dict | None = None,
-                       artwork_dir: str | Path | None = None, meta: dict | None = None) -> int:
-    """Add an already-copied MP3 to the .itlp library (itlp_dir) + resign.
+def add_audio_to_library(itlp_dir: str | Path, location: str, meta_src: str | Path,
+                         file_size: int, guid: bytes, *, overrides: dict | None = None,
+                         artwork_dir: str | Path | None = None, meta: dict | None = None) -> int:
+    """Add an already-copied MP3/AAC file to the .itlp library (itlp_dir) + resign.
 
     itlp_dir — directory with the .itdb files (a working copy is fine). meta_src —
     the source file to read tags from (unless `meta`, already read, is given). If
@@ -93,7 +119,7 @@ def add_mp3_to_library(itlp_dir: str | Path, location: str, meta_src: str | Path
     cover art, it is automatically linked to the track (frames appended to .ithmb, mhii
     to ArtworkDB, fields in item). Returns the pid.
     """
-    meta = dict(meta) if meta is not None else read_mp3_meta(Path(meta_src))
+    meta = dict(meta) if meta is not None else read_meta(Path(meta_src))
     if overrides:
         meta.update({k: v for k, v in overrides.items() if v is not None})
         for k, v in overrides.items():       # the file's sort tag belongs to the old name
@@ -110,8 +136,8 @@ def add_mp3_to_library(itlp_dir: str | Path, location: str, meta_src: str | Path
         genre=meta.get("genre", ""),
         total_time_ms=meta["total_time_ms"], track_number=meta.get("track_number", 0),
         year=meta.get("year", 0), bit_rate=meta.get("bit_rate", 0),
-        sample_rate=meta.get("sample_rate", 44100), audio_format=MP3_AUDIO_FORMAT,
-        file_size=file_size, extension=MP3_EXT_4CC, kind="MPEG audio file",
+        sample_rate=meta.get("sample_rate", 44100), audio_format=meta["audio_format"],
+        file_size=file_size, extension=meta["extension"], kind=meta["kind"],
     )
     lib = ItlpLibrary(itlp_dir)
     try:

@@ -29,7 +29,7 @@ def _mac_now() -> int:
 
 
 from ipodsync.export import export_track
-from ipodsync.importer import add_mp3_to_library, copy_audio_to_ipod, read_mp3_meta
+from ipodsync.importer import add_audio_to_library, copy_audio_to_ipod, read_meta
 from ipodsync.library import ItlpLibrary
 from ipodsync.sysinfo import read_firewire_guid
 from ipodsync.transport import (NO_ACCESS_HINT, Access, IPodNotFound, find_ipod,
@@ -290,7 +290,7 @@ def cmd_add(ipod, args):
     todo, skipped = [], 0
     for src in files:
         try:
-            todo.append((src, read_mp3_meta(src)))
+            todo.append((src, read_meta(src)))
         except Exception as e:
             print(f"⚠️  skipping \"{src.name}\": {e}")
             skipped += 1
@@ -307,11 +307,11 @@ def cmd_add(ipod, args):
         for i, (src, meta) in enumerate(todo, 1):
             prefix = f"[{i}/{n}] " if n > 1 else ""
             print(f"→ {prefix}copying \"{src.name}\" onto the iPod…")
-            location, abs_path = copy_audio_to_ipod(ipod, str(src))
+            location, abs_path = copy_audio_to_ipod(ipod, str(src), meta["ext"])
             copied.append(abs_path)
-            pid = add_mp3_to_library(work, location, str(src), abs_path.stat().st_size,
-                                     guid, overrides=overrides if n == 1 else {},
-                                     artwork_dir=art_dir, meta=meta)
+            pid = add_audio_to_library(work, location, str(src), abs_path.stat().st_size,
+                                       guid, overrides=overrides if n == 1 else {},
+                                       artwork_dir=art_dir, meta=meta)
             cover = "" if args.no_cover else " (+ cover art)"
             print(f"  ✓ {prefix}added \"{src.name}\"{cover}  ·  pid {pid}")
             added += 1

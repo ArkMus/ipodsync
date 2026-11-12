@@ -244,6 +244,24 @@ class ItlpLibrary:
                         f'FROM item WHERE "{ref}"="{table}".pid)')
         cur.execute("UPDATE album SET item_count=(SELECT count(*) FROM item WHERE album_pid=album.pid)")
 
+    def _kind_id(self, lib, loc, extension: int, kind: str) -> int | None:
+        """location.kind_id for a file type: the one iTunes used most for this
+        extension (its names are localized), else the location_kind_map row named
+        `kind`, created if missing. None if the library has no location_kind_map."""
+        if not _row(lib, "SELECT 1 FROM sqlite_master WHERE name='location_kind_map'"):
+            return None
+        known = {r[0] for r in lib.execute("SELECT id FROM location_kind_map")}
+        for r in loc.execute("SELECT kind_id FROM location WHERE extension=? "
+                             "GROUP BY kind_id ORDER BY count(*) DESC", (extension,)):
+            if r[0] in known:
+                return r[0]
+        got = _row(lib, "SELECT id FROM location_kind_map WHERE kind=?", (kind,))
+        if got:
+            return got["id"]
+        kind_id = _max_order(lib, "location_kind_map", "id") + 1
+        _insert(lib, "location_kind_map", {"id": kind_id, "kind": kind})
+        return kind_id
+
     def add_track(self, m: TrackMeta, *, date: int) -> int:
         """Add a track to all tables. Returns the pid of the new item."""
         lib = self.cx["Library.itdb"].cursor()
@@ -332,6 +350,9 @@ class ItlpLibrary:
         tmpl_loc = _row_or_template(loc, "SELECT * FROM location LIMIT 1", "location")
         tmpl_loc.update(item_pid=item_pid, location=m.location, file_size=m.file_size,
                         extension=m.extension, date_created=date)
+        kind_id = self._kind_id(lib, loc, m.extension, m.kind)
+        if kind_id is not None:          # not the template's: it may be another file type
+            tmpl_loc["kind_id"] = kind_id
         _insert(loc, "location", tmpl_loc)
 
         # item_stats (Dynamic), chapter (Extras) — clone the template onto the new item_pid

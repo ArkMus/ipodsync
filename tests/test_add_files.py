@@ -30,11 +30,11 @@ def fake(monkeypatch, tmp_path):
     def read(path):
         if path.name.startswith("bad"):
             raise ValueError("can't sync to MPEG frame")
-        return {"title": path.stem}
+        return {"title": path.stem, "ext": path.suffix}
 
-    monkeypatch.setattr(cli, "read_mp3_meta", read)
+    monkeypatch.setattr(cli, "read_meta", read)
     added = []
-    monkeypatch.setattr(cli, "add_mp3_to_library",
+    monkeypatch.setattr(cli, "add_audio_to_library",
                         lambda work, location, src, size, guid, **kw: added.append(kw["meta"])
                         or len(added))
     src = tmp_path / "src"
@@ -68,7 +68,7 @@ def test_failed_add_removes_the_copied_files(tmp_path, fake, monkeypatch):
             raise RuntimeError("database error")
         return 1
 
-    monkeypatch.setattr(cli, "add_mp3_to_library", fail_on_second)
+    monkeypatch.setattr(cli, "add_audio_to_library", fail_on_second)
     with pytest.raises(RuntimeError):
         cli.cmd_add(_ipod(tmp_path), _args(fake.src / "a.mp3", fake.src / "c.mp3"))
     assert _on_ipod(tmp_path) == []                      # a.mp3 removed again too
