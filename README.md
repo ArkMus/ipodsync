@@ -87,6 +87,27 @@ The iPod is discovered under `/Volumes` (macOS) and `/media`, `/run/media`, `/mn
 (Linux) by the presence of `iPod_Control/`. To point at it explicitly, set
 `IPODSYNC_MOUNT=/path/to/mount`.
 
+## Configuration
+
+ipodsync reads these environment variables:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `IPODSYNC_MOUNT` | found automatically | where the iPod is mounted |
+| `IPODSYNC_FIREWIRE_GUID` | read from the device | the GUID used for signing |
+| `IPODSYNC_BACKUP_DIR` | `~/ipod-backups` | where `-b` puts its backups |
+
+To keep them without exporting them in every shell, put them in
+`~/.config/ipodsync/env` (or `$XDG_CONFIG_HOME/ipodsync/env`), one per line:
+
+```bash
+# ipodsync settings
+IPODSYNC_BACKUP_DIR=~/Backups/ipod
+```
+
+A variable set in the environment wins over the file. Lines starting with `#` are
+comments; quotes around a value are optional; `~` and `$HOME` are expanded.
+
 ## Linux: mounting the iPod
 
 On macOS, Finder mounts the iPod automatically — you never need `--mount`, just run

@@ -29,6 +29,7 @@ def _mac_now() -> int:
     return int(datetime.now(timezone.utc).timestamp()) - MAC_EPOCH
 
 
+from ipodsync.config import load_config
 from ipodsync.export import export_track
 from ipodsync.importer import add_audio_to_library, copy_audio_to_ipod, read_meta
 from ipodsync.library import ItlpLibrary
@@ -400,6 +401,7 @@ def cmd_cover(ipod, args):
 
 
 def main() -> int:
+    load_config()
     ap = argparse.ArgumentParser(
         prog="ipodsync",
         description="Upload music to an iPod nano 6G/7G without iTunes (macOS + Linux). "
@@ -408,6 +410,8 @@ def main() -> int:
         epilog="Set IPODSYNC_MOUNT=/path to point at the iPod explicitly. "
                "On Linux, `ipodsync --mount` mounts the iPod once (sudo) and leaves it "
                "mounted, so `add`/`list`/... just work; `ipodsync --unmount` when done. "
+               "IPODSYNC_* settings can also be kept in ~/.config/ipodsync/env "
+               "(environment variables win). "
                "Run `ipodsync <command> -h` for per-command help.")
     ap.add_argument("--mount", action="store_true",
                     help="Linux: mount the iPod (sudo) and leave it mounted, then exit")
