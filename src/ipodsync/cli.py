@@ -233,6 +233,41 @@ def cmd_status(args):
         print("❌ iPod not connected (no volume in /Volumes). Enable Disk Use.")
 
 
+def cmd_config(args) -> int:
+    """Show the settings file, or set/unset one setting in it. Doesn't need the iPod."""
+    from ipodsync import config
+
+    path = config.config_path()
+    try:
+        if args.action == "set":
+            key = config.set_value(args.name, args.value)
+            print(f"✓ Saved {key}={args.value.strip()} in {path}")
+        elif args.action == "unset":
+            key, removed = config.unset_value(args.name)
+            print(f"✓ Removed {key} from {path}" if removed
+                  else f"{key} isn't in {path}; nothing to remove")
+    except ValueError as e:
+        print(f"⚠️  {e}")
+        return 1
+    if args.action:
+        if config.set_in_shell(key):
+            print(f"  Note: {key} is also set in this shell ({os.environ[key]}), and that "
+                  f"wins over the file while it's set (`unset {key}` to drop it).")
+        return 0
+
+    saved = config.read_config()
+    print(f"Settings file: {path}" + ("" if path.exists() else "  (doesn't exist yet)"))
+    for name, (key, default) in config.SETTINGS.items():
+        if config.set_in_shell(key):
+            shown = f"{os.environ[key]}   (from environment)"
+        elif key in saved:
+            shown = f"{saved[key]}   (from file)"
+        else:
+            shown = f"(not set: {default})"
+        print(f"  {name:<14} {shown}")
+    return 0
+
+
 def cmd_wait(args):
     print("⏳ Waiting for iPod…")
     last = {"s": None}
@@ -471,6 +506,15 @@ def main() -> int:
     ppd = sub.add_parser("pl-del", help="delete a playlist")
     ppd.add_argument("playlist", type=int, help="playlist pid")
 
+    pcf = sub.add_parser("config", help="show or change saved settings "
+                                        "(~/.config/ipodsync/env)")
+    pcf_sub = pcf.add_subparsers(dest="action", metavar="<action>")
+    pcs = pcf_sub.add_parser("set", help="save a setting")
+    pcs.add_argument("name", help="mount, firewire-guid or backup-dir")
+    pcs.add_argument("value")
+    pcu = pcf_sub.add_parser("unset", help="remove a saved setting")
+    pcu.add_argument("name", help="mount, firewire-guid or backup-dir")
+
     pcv = sub.add_parser("cover", help="attach a cover to an existing track")
     pcv.add_argument("pid", type=int, help="track pid")
     pcv.add_argument("--image", help="cover image file (otherwise the track's APIC is used)")
@@ -521,6 +565,8 @@ def _dispatch(args) -> int:
         return cmd_status(args)
     if args.cmd == "wait":
         return cmd_wait(args)
+    if args.cmd == "config":
+        return cmd_config(args)
     try:
         ipod = find_ipod()
     except IPodNotFound as e:

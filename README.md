@@ -97,8 +97,17 @@ ipodsync reads these environment variables:
 | `IPODSYNC_FIREWIRE_GUID` | read from the device | the GUID used for signing |
 | `IPODSYNC_BACKUP_DIR` | `~/ipod-backups` | where `-b` puts its backups |
 
-To keep them without exporting them in every shell, put them in
-`~/.config/ipodsync/env` (or `$XDG_CONFIG_HOME/ipodsync/env`), one per line:
+To keep them without exporting them in every shell, save them in the settings file
+`~/.config/ipodsync/env` (or `$XDG_CONFIG_HOME/ipodsync/env`):
+
+```bash
+ipodsync config                              # show the file and every setting
+ipodsync config set backup-dir ~/Backups/ipod   # save a setting (creates the file)
+ipodsync config unset backup-dir             # remove it again
+```
+
+The short names are `mount`, `firewire-guid` and `backup-dir`; the full
+`IPODSYNC_…` names work too. The file can also be written by hand, one per line:
 
 ```bash
 # ipodsync settings
