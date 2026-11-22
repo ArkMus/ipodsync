@@ -80,7 +80,8 @@ ipodsync -b add "Song.mp3"          # -b: back up the library first (off by defa
 ```
 
 Writes don't back up the library by default — pass `-b` / `--backup` to snapshot
-`iTunes Library.itlp` to `~/ipod-backups` before editing.
+`iTunes Library.itlp` to `~/ipod-backups` before editing. Set
+`IPODSYNC_BACKUP_DIR=/path/to/folder` to keep the backups somewhere else.
 
 The iPod is discovered under `/Volumes` (macOS) and `/media`, `/run/media`, `/mnt`
 (Linux) by the presence of `iPod_Control/`. To point at it explicitly, set

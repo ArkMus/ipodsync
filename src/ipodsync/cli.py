@@ -9,8 +9,9 @@
     ipodsync cover PID [--image IMG]   # attach a cover to a track
 
 Export is read-only. add/rm/cover write to the database; pass -b to back the library
-up to ~/ipod-backups first. Browsing the iPod in Finder/Music is fine; just don't let
-Apple's software auto-sync it, or a sync will drop manually-added tracks.
+up to ~/ipod-backups first (or to $IPODSYNC_BACKUP_DIR if set). Browsing the iPod in
+Finder/Music is fine; just don't let Apple's software auto-sync it, or a sync will drop
+manually-added tracks.
 """
 from __future__ import annotations
 
@@ -331,12 +332,18 @@ def cmd_add(ipod, args):
         print(f"  Undo: rm -rf '{itlp}' && cp -r '{backup}' '{itlp}'")
 
 
+def _backup_dir() -> Path:
+    """Where -b backups go: $IPODSYNC_BACKUP_DIR if set, else ~/ipod-backups."""
+    env = os.environ.get("IPODSYNC_BACKUP_DIR")
+    return Path(env).expanduser().absolute() if env else Path.home() / "ipod-backups"
+
+
 def _backup_library(itlp: Path, stamp: str) -> Path:
-    """Copy the whole .itlp to ~/ipod-backups (only when -b/--backup is given)."""
-    dst = Path.home() / "ipod-backups" / f"itlp-{stamp}"
+    """Copy the whole .itlp to the backup folder (only when -b/--backup is given)."""
+    dst = _backup_dir() / f"itlp-{stamp}"
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(itlp, dst)
-    print(f"→ backed up the library ({dst.name})")
+    print(f"→ backed up the library to {dst}")
     return dst
 
 
@@ -344,7 +351,7 @@ def _backup_artwork(ipod, stamp: str) -> None:
     """Back up iPod_Control/Artwork before appending covers (ithmb append)."""
     art = ipod.control / "Artwork"
     if art.exists():
-        dst = Path.home() / "ipod-backups" / f"Artwork-{stamp}"
+        dst = _backup_dir() / f"Artwork-{stamp}"
         shutil.copytree(art, dst)  # backed up alongside the library
 
 
@@ -407,8 +414,8 @@ def main() -> int:
     ap.add_argument("--unmount", "--umount", action="store_true", dest="unmount",
                     help="Linux: unmount the iPod mounted by --mount, then exit")
     ap.add_argument("-b", "--backup", action="store_true",
-                    help="back up the library to ~/ipod-backups before editing "
-                         "(off by default)")
+                    help="back up the library to ~/ipod-backups (or $IPODSYNC_BACKUP_DIR) "
+                         "before editing (off by default)")
     sub = ap.add_subparsers(dest="cmd", required=False, metavar="<command>")
 
     sub.add_parser("list", help="show tracks on the iPod")
